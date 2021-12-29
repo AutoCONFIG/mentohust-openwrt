@@ -28,10 +28,6 @@ define Package/$(PKG_NAME)
   SUBMENU:=Ruijie 802.1x Client
 endef
 
-define Package/mentohust/conffiles
-	/etc/mentohust.conf
-endef
-
 define Build/Configure
 	$(SED) 's/dhclient/udhcpc -i/g' $(PKG_BUILD_DIR)/src/myconfig.c
 	(cd $(PKG_BUILD_DIR);./autogen.sh;./configure CFLAGS=-O3 CXXFLAGS=-O3 CPPFLAGS=-O3)
@@ -42,7 +38,6 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/mentohust $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/src/mentohust.conf $(1)/etc/mentohust.conf
-
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
