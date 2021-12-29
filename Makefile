@@ -34,7 +34,7 @@ endef
 
 define Build/Configure
 	$(SED) 's/dhclient/udhcpc -i/g' $(PKG_BUILD_DIR)/src/myconfig.c
-	(cd $(PKG_BUILD_DIR);./autogen.sh;./configure)
+	(cd $(PKG_BUILD_DIR);./autogen.sh;./configure CFLAGS=-O3 CXXFLAGS=-O3 CPPFLAGS=-O3)
 endef
 
 define Package/$(PKG_NAME)/install
