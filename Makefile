@@ -33,8 +33,8 @@ define Package/mentohust/conffiles
 endef
 
 define Build/Configure
-	(cd $(PKG_BUILD_DIR);./autogen.sh;./configure)
 	$(SED) 's/dhclient/udhcpc -i/g' $(PKG_BUILD_DIR)/src/myconfig.c
+	(cd $(PKG_BUILD_DIR);./autogen.sh;./configure)
 endef
 
 define Package/$(PKG_NAME)/install
