@@ -12,7 +12,7 @@ PKG_RELEASE:=1
 PKG_LICENSE:=GPLv3
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/ZenZRyan/mentohust.git
+PKG_SOURCE_URL:=https://github.com/AutoCONFIG/mentohust.git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_VERSION:=ecbca7de8322152616867fb79defb7e6ef95ff78
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
