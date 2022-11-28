@@ -24,7 +24,7 @@ define Package/$(PKG_NAME)
   CATEGORY:=Network
   DEPENDS:=+libpcap
   TITLE:=A Ruijie v3 (v4) Client Daemon
-  URL:=https://github.com/ZenZRyan/mentohust-openwrt
+  URL:=https://github.com/AutoCONFIG/mentohust-openwrt
   SUBMENU:=Ruijie 802.1x Client
 endef
 
