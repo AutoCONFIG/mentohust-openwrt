@@ -15,7 +15,6 @@ static const char *PACKAGE_BUGREPORT = "http://code.google.com/p/mentohust/issue
 #endif
 
 #include "myconfig.h"
-#include "i18n.h"
 #include "myini.h"
 #include "myfunc.h"
 #include "dlfunc.h"
@@ -25,15 +24,9 @@ static const char *PACKAGE_BUGREPORT = "http://code.google.com/p/mentohust/issue
 #include <signal.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <termios.h>
-
-#ifndef NO_GETOPT_LONG
-#include <getopt.h>
-#endif
 
 #define ACCOUNT_SIZE		65	/* 用户名密码长度*/
 #define NIC_SIZE			16	/* 网卡名最大长度 */
-#define SERVICE_SIZE		127	/* 服务名最大长度 */
 #define MAX_PATH			255	/* FILENAME_MAX */
 #define D_TIMEOUT			8	/* 默认超时间隔 */
 #define D_ECHOINTERVAL		30	/* 默认心跳间隔 */
@@ -41,19 +34,12 @@ static const char *PACKAGE_BUGREPORT = "http://code.google.com/p/mentohust/issue
 #define D_STARTMODE			0	/* 默认组播模式 */
 #define D_DHCPMODE			0	/* 默认DHCP模式 */
 #define D_DAEMONMODE		0	/* 默认daemon模式 */
-#define D_MAXFAIL			8	/* 默认允许失败次数 */
-#define D_SERVICENAME		"internet"	/* 默认要登录的服务名 */
+#define D_MAXFAIL			0	/* 默认允许失败次数 */
 
-#define ECHOFLAGS (ECHO|ECHOE|ECHOK|ECHONL)    /* 控制台输入密码时的模式*/
-
-#ifdef MAC_OS
-static const char *D_DHCPSCRIPT = "dhcping -v -t 15";	/* 默认DHCP脚本 */
-#else
 static const char *D_DHCPSCRIPT = "dhclient";	/* 默认DHCP脚本 */
-#endif
 static const char *CFG_FILE = "/etc/mentohust.conf";	/* 配置文件 */
 static const char *LOG_FILE = "/tmp/mentohust.log";	/* 日志文件 */
-static const char *LOCK_FILE = "/var/run/mentohust.pid";	/* 锁文件 */
+static const char *LOCK_FILE = "/tmp/mentohust.pid";	/* 锁文件 */
 #define LOCKMODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)	/* 创建掩码 */
 
 #ifndef NO_NOTIFY
@@ -68,7 +54,6 @@ char password[ACCOUNT_SIZE] = "";	/* 密码 */
 char nic[NIC_SIZE] = "";	/* 网卡名 */
 char dataFile[MAX_PATH] = "";	/* 数据文件 */
 char dhcpScript[MAX_PATH] = "";	/* DHCP脚本 */
-char serviceName[SERVICE_SIZE] = ""; /* 需要登陆到的服务名 */
 u_int32_t ip = 0;	/* 本机IP */
 u_int32_t mask = 0;	/* 子网掩码 */
 u_int32_t gateway = 0;	/* 网关 */
@@ -163,68 +148,33 @@ static int decodePass(char *dst, const char *src) {
 }
 #endif
 
-int getpasswd(char  passwd[])
-{
-    int ret=0;
-	struct termios termios_buf;
-	
-	if(tcgetattr(STDIN_FILENO,&termios_buf)!=0)
-	{
-		perror(_("获取终端属性失败"));
-		return -1;
-	}
-	
-	termios_buf.c_lflag &= ~ECHOFLAGS;
-	
-	if(tcsetattr(STDIN_FILENO,TCSAFLUSH,&termios_buf)!=0)
-	{
-		perror(_("设置终端属性失败"));
-		return -2;
-	}
-	
-	if(passwd!=NULL){
-	    ret=scanf("%s", passwd);
-	}
-	
-    //printf("\nYour passwd is %s\n",passwd);
-
-	if(tcgetattr(STDIN_FILENO,&termios_buf)!=0)
-	{
-		perror(_("获取终端属性失败"));
-		return -1;
-	}
-	
-	termios_buf.c_lflag |= ECHOFLAGS;
-	
-	if(tcsetattr(STDIN_FILENO,TCSAFLUSH,&termios_buf)!=0)
-	{
-		perror(_("设置终端属性失败"));
-		return -2;
-	}
-	
-	return ret>0?0:1;
-}
-
-
 void initConfig(int argc, char **argv)
 {
 	int saveFlag = 0;	/* 是否需要保存参数 */
 	int exitFlag = 0;	/* 0Nothing 1退出 2重启 */
 	int daemonMode = D_DAEMONMODE;	/* 是否后台运行 */
-	void customizeServiceName(char* service); /* myconfig.c中用于更改服务名的函数 */
 
-	printf(_("\n欢迎使用MentoHUST\t版本: %s\n"
+	printf("\n欢迎使用MentoHUST\t版本: %s\n"
 			"Copyright (C) 2009-2010 HustMoon Studio\n"
 			"人到华中大，有甜亦有辣。明德厚学地，求是创新家。\n"
-			"Bug report to %s\n\n"), VERSION, PACKAGE_BUGREPORT);
+			"Bug report to %s\n\n", VERSION, PACKAGE_BUGREPORT);
 	saveFlag = (readFile(&daemonMode)==0 ? 0 : 1);
 	readArg(argc, argv, &saveFlag, &exitFlag, &daemonMode);
+#ifndef NO_NOTIFY
+	if (showNotify) {
+		seteuid(getuid());
+		if (load_libnotify() == -1)
+			showNotify = 0;
+		else
+			set_timeout(1000 * showNotify);
+		seteuid(0);
+	}
+#endif
 #ifndef NO_DYLOAD
 	if (load_libpcap() == -1) {
 #ifndef NO_NOTIFY
-		if (showNotify && show_notify(_("MentoHUST - 错误提示"),
-			_("载入libpcap失败, 请检查该库文件！"), 1000*showNotify) < 0)
-			showNotify = 0;
+		if (showNotify)
+			show_notify("MentoHUST - 错误提示", "载入libpcap失败, 请检查该库文件！");
 #endif
 		exit(EXIT_FAILURE);
 	}
@@ -234,9 +184,8 @@ void initConfig(int argc, char **argv)
 		saveFlag = 1;
 		if (getAdapter() == -1) {	/* 找不到（第一块）网卡？ */
 #ifndef NO_NOTIFY
-		if (showNotify && show_notify(_("MentoHUST - 错误提示"),
-			_("找不到网卡！"), 1000*showNotify) < 0)
-			showNotify = 0;
+			if (showNotify)
+				show_notify("MentoHUST - 错误提示", "找不到网卡！");
 #endif
 			exit(EXIT_FAILURE);
 		}
@@ -244,19 +193,14 @@ void initConfig(int argc, char **argv)
 	if (userName[0]=='\0' || password[0]=='\0')	/* 未写用户名密码？ */
 	{
 		saveFlag = 1;
-		printf(_("?? 请输入用户名: "));
+		printf("?? 请输入用户名: ");
 		scanf("%s", userName);
-		
-		printf(_("?? 请输入密码: "));
-		//scanf("%s", password);
-		getpasswd(password);
-		//last newline eaten by scanf in getpasswd
-		printf("\n");
-		
-		printf(_("?? 请选择组播地址(0标准 1锐捷私有 2赛尔): "));
+		printf("?? 请输入密码: ");
+		scanf("%s", password);
+		printf("?? 请选择组播地址(0标准 1锐捷私有 2赛尔): ");
 		scanf("%u", &startMode);
 		startMode %= 3;
-		printf(_("?? 请选择DHCP方式(0不使用 1二次认证 2认证后 3认证前): "));
+		printf("?? 请选择DHCP方式(0不使用 1二次认证 2认证后 3认证前): ");
 		scanf("%u", &dhcpMode);
 		dhcpMode %= 4;
 	}
@@ -268,16 +212,12 @@ void initConfig(int argc, char **argv)
 	}
 	if (dhcpScript[0] == '\0')	/* 未填写DHCP脚本？ */
 		strcpy(dhcpScript, D_DHCPSCRIPT);
-	if (serviceName[0] == '\0') /* 未填写服务名？ */
-		strcpy(serviceName, D_SERVICENAME);
-	customizeServiceName(serviceName);
 	newBuffer();
 	printConfig();
 	if (fillHeader()==-1 || openPcap()==-1) {	/* 获取IP、MAC，打开网卡 */
 #ifndef NO_NOTIFY
-		if (showNotify && show_notify(_("MentoHUST - 错误提示"),
-			_("获取MAC地址或打开网卡失败！"), 1000*showNotify) < 0)
-			showNotify = 0;
+		if (showNotify)
+			show_notify("MentoHUST - 错误提示", "获取MAC地址或打开网卡失败！");
 #endif
 		exit(EXIT_FAILURE);
 	}
@@ -287,22 +227,21 @@ void initConfig(int argc, char **argv)
 
 static int readFile(int *daemonMode)
 {
-	char tmp[16], *buf;
-	if (loadFile(&buf, CFG_FILE) < 0)
+	char tmp[16];
+	char *buf = loadFile(CFG_FILE);
+	if (buf == NULL)
 		return -1;
 	getString(buf, "MentoHUST", "Username", "", userName, sizeof(userName));
-#ifdef NO_ENCODE_PASS
 	getString(buf, "MentoHUST", "Password", "", password, sizeof(password));
-#else
-	char pass[ACCOUNT_SIZE*4/3+1];
-	getString(buf, "MentoHUST", "Password", "", pass, sizeof(pass));
-	if (pass[0] == ' ') {
-		decodePass(password, pass+1);
+#ifndef NO_ENCODE_PASS
+	char pass[ACCOUNT_SIZE*4/3];
+	if (password[0] == '\0') {
+		getString(buf, "MentoHUST", "EncodePass", "", pass, sizeof(pass));
+		decodePass(password, pass);
 	} else {
-		strncpy(password, pass, sizeof(password)-1);
-		encodePass(pass+1, password);
-		pass[0] = ' ';
-		setString(&buf, "MentoHUST", "Password", pass);
+		encodePass(pass, password);
+		setString(&buf, "MentoHUST", "Password", NULL);
+		setString(&buf, "MentoHUST", "EncodePass", pass);
 		saveFile(buf, CFG_FILE);
 	}
 #endif
@@ -310,7 +249,6 @@ static int readFile(int *daemonMode)
 	getString(buf, "MentoHUST", "Datafile", "", dataFile, sizeof(dataFile));
 	getString(buf, "MentoHUST", "DhcpScript", "", dhcpScript, sizeof(dhcpScript));
 	getString(buf, "MentoHUST", "Version", "", tmp, sizeof(tmp));
-	getString(buf, "MentoHUST", "ServiceName", D_SERVICENAME, serviceName, sizeof(serviceName));
 	if (strlen(tmp) >= 3) {
 		unsigned ver[2];
 		if (sscanf(tmp, "%u.%u", ver, ver+1)!=EOF && ver[0]!=0) {
@@ -345,142 +283,6 @@ static int readFile(int *daemonMode)
 
 static void readArg(char argc, char **argv, int *saveFlag, int *exitFlag, int *daemonMode)
 {
-#ifndef NO_GETOPT_LONG
-    int opt = 0;
-    int longIndex = 0;
-    unsigned ver[2]; /* -v buffer */
-    static const char* shortOpts = "hk::wu:p:n:i:m:g:s:o:t:e:r:l:a:d:b:"
-#ifndef NO_NOTIFY
-        "y:"
-#endif
-        "v:f:c:q:";
-    static const struct option longOpts[] = {
-	    { "help", no_argument, NULL, 'h' },
-	    { "kill", optional_argument, NULL, 'k' },
-	    { "write", no_argument, NULL, 'w' },
-	    { "username", required_argument, NULL, 'u' },
-	    { "password", required_argument, NULL, 'p' },
-	    { "nic", required_argument, NULL, 'n' },
-	    { "ip", required_argument, NULL, 'i' },
-	    { "mask", required_argument, NULL, 'm' },
-	    { "gateway", required_argument, NULL, 'g' },
-	    { "dns", required_argument, NULL, 's' },
-	    { "ping-host", required_argument, NULL, 'o' },
-	    { "auth-timeout", required_argument, NULL, 't' },
-	    { "heartbeat", required_argument, NULL, 'e' },
-	    { "wait-after-fail", required_argument, NULL, 'r' },
-	    { "max-fail", required_argument, NULL, 'l' },
-	    { "eap-bcast-addr", required_argument, NULL, 'a' },
-	    { "dhcp-type", required_argument, NULL, 'd' },
-	    { "daemonize", required_argument, NULL, 'b' },
-#ifndef NO_NOTIFY
-	    { "notify", required_argument, NULL, 'y' },
-#endif
-	    { "fake-supplicant-version", required_argument, NULL, 'v' },
-	    { "template-file", required_argument, NULL, 'f' },
-	    { "dhcp-script", required_argument, NULL, 'c' },
-	    { "decode-config", required_argument, NULL, 'q' },
-	    { "service", required_argument, NULL, 0},
-	    { NULL, no_argument, NULL, 0 }
-    };
-
-    opt = getopt_long(argc, argv, shortOpts, longOpts, &longIndex);
-#define COPY_ARG_TO(char_array) strncpy(char_array, optarg, sizeof(char_array) - 1);
-    while (opt != -1) {
-        switch (opt) {
-            case 'h':
-                showHelp(argv[0]); /* 调用本函数将退出程序 */
-            case 'k':
-                if (optarg == NULL)
-                    *exitFlag = 1; /* 结束其他实例并退出 */
-                else
-                    *exitFlag = 2; /* 结束其他实例，本实例继续运行 */
-                break;
-            case 'w':
-                *saveFlag = 1;
-                break;
-            case 'u':
-                COPY_ARG_TO(userName);
-                break;
-            case 'p':
-                COPY_ARG_TO(password);
-                break;
-            case 'n':
-                COPY_ARG_TO(nic);
-                break;
-            case 'i':
-                ip = inet_addr(optarg);
-                break;
-            case 'm':
-                mask = inet_addr(optarg);
-                break;
-            case 'g':
-                gateway = inet_addr(optarg);
-                break;
-            case 's':
-                dns = inet_addr(optarg);
-                break;
-            case 'o':
-                pingHost = inet_addr(optarg);
-                break;
-            case 't':
-                timeout = atoi(optarg); /* 此处不设置限制，但原始的代码中有最大99秒的限制 */
-                break;
-            case 'e':
-                echoInterval = atoi(optarg); /* 同上 */
-                break;
-            case 'r':
-                restartWait = atoi(optarg); /* 同上 */
-                break;
-            case 'l':
-                maxFail = atoi(optarg);
-                break;
-            case 'a':
-                startMode = atoi(optarg) % 3;
-                break;
-            case 'd':
-                dhcpMode = atoi(optarg) % 4;
-                break;
-            case 'b':
-                *daemonMode = atoi(optarg) % 4;
-                break;
-#ifndef NO_NOTIFY
-            case 'y':
-                showNotify = atoi(optarg) % 21; /* 此处限制不知原因，程序中并未进行大小判断，保留 */
-                break;
-#endif
-            case 'v':
-                if (sscanf(optarg, "%u.%u", ver, ver + 1) != EOF) {
-                    if (ver[0] == 0) {
-                        bufType = 0;
-                    } else {
-                        version[0] = ver[0];
-                        version[1] = ver[1];
-                        bufType = 1;
-                    }
-                }
-                break;
-            case 'f':
-                COPY_ARG_TO(dataFile);
-                break;
-            case 'c':
-                COPY_ARG_TO(dhcpScript);
-                break;
-            case 'q':
-                printSuConfig(optarg);
-                exit(EXIT_SUCCESS);
-            case 0: /* 超出26个字母的选项，没有短选项与其对应 */
-#define IF_ARG(arg_name) (strcmp(longOpts[longIndex].name, arg_name) == 0)
-                if (IF_ARG("service")) {
-                    COPY_ARG_TO(serviceName);
-                }
-                break;
-            default:
-                break;
-        }
-        opt = getopt_long(argc, argv, shortOpts, longOpts, &longIndex);
-    }
-#else
 	char *str, c;
 	int i;
 	for (i=1; i<argc; i++)
@@ -491,10 +293,6 @@ static void readArg(char argc, char **argv, int *saveFlag, int *exitFlag, int *d
 		c = str[1];
 		if (c=='h' || c=='?' || strcmp(str, "--help")==0)
 			showHelp(argv[0]);
-        else if (c == 'q') {
-            printSuConfig(str+2);
-            exit(EXIT_SUCCESS);
-        }
 		else if (c == 'w')
 			*saveFlag = 1;
 		else if (c == 'k') {
@@ -557,115 +355,39 @@ static void readArg(char argc, char **argv, int *saveFlag, int *exitFlag, int *d
 				maxFail = atoi(str+2);
 		}
 	}
-#endif
 }
 
 static void showHelp(const char *fileName)
 {
 	char *helpString =
-		_("用法:\t%s [-选项][参数] 或 [-选项] [参数] 或 [--长选项] [参数]\n选项:"
-#ifndef NO_GETOPT_LONG
-        "\t--help"
-#endif
-		"\t-h 显示本帮助信息\n"
-#ifndef NO_GETOPT_LONG
-        "\t--kill"
-#endif
+		"用法:\t%s [-选项][参数]\n"
+		"选项:\t-h 显示本帮助信息\n"
 		"\t-k -k(退出程序) 其他(重启程序)\n"
-#ifndef NO_GETOPT_LONG
-        "\t--write"
-#endif
 		"\t-w 保存参数到配置文件\n"
-#ifndef NO_GETOPT_LONG
-        "\t--username"
-#endif
 		"\t-u 用户名\n"
-#ifndef NO_GETOPT_LONG
-        "\t--password"
-#endif
 		"\t-p 密码\n"
-#ifndef NO_GETOPT_LONG
-        "\t--nic"
-#endif
 		"\t-n 网卡名\n"
-#ifndef NO_GETOPT_LONG
-        "\t--ip"
-#endif
 		"\t-i IP[默认本机IP]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--mask"
-#endif
 		"\t-m 子网掩码[默认本机掩码]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--gateway"
-#endif
 		"\t-g 网关[默认0.0.0.0]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--dns"
-#endif
 		"\t-s DNS[默认0.0.0.0]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--ping-host"
-#endif
 		"\t-o Ping主机[默认0.0.0.0，表示关闭该功能]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--auth-timeout"
-#endif
 		"\t-t 认证超时(秒)[默认8]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--heartbeat"
-#endif
-		"\t-e 心跳间隔(秒)[默认30]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--wait-after-fail"
-#endif
+		"\t-e 响应间隔(秒)[默认30]\n"
 		"\t-r 失败等待(秒)[默认15]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--max-fail"
-#endif
-		"\t-l 允许失败次数[0表示无限制，默认8]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--eap-bcast-addr"
-#endif
+		"\t-l 允许失败次数[默认0，表示无限制]\n"
 		"\t-a 组播地址: 0(标准) 1(锐捷) 2(赛尔) [默认0]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--dhcp-type"
-#endif
 		"\t-d DHCP方式: 0(不使用) 1(二次认证) 2(认证后) 3(认证前) [默认0]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--daemonize"
-#endif
 		"\t-b 是否后台运行: 0(否) 1(是，关闭输出) 2(是，保留输出) 3(是，输出到文件) [默认0]\n"
 #ifndef NO_NOTIFY
-#ifndef NO_GETOPT_LONG
-        "\t--notify"
-#endif
 		"\t-y 是否显示通知: 0(否) 1~20(是) [默认5]\n"
 #endif
-#ifndef NO_GETOPT_LONG
-        "\t--fake-supplicant-version"
-#endif
 		"\t-v 客户端版本号[默认0.00表示兼容xrgsu]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--template-file"
-#endif
 		"\t-f 自定义数据文件[默认不使用]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--dhcp-script"
-#endif
 		"\t-c DHCP脚本[默认dhclient]\n"
-#ifndef NO_GETOPT_LONG
-        "\t--decode-config"
-#endif
-		"\t-q 显示SuConfig.dat的内容(如-q/path/SuConfig.dat)\n"
-#ifndef NO_GETOPT_LONG
-		/* 从这里开始就是必须使用长选项的参数了 */
-		"\t--service 要登陆到的服务名 [默认internet]\n"
-#endif
-		"例如:\t%s -u username -p password -n eth0 -i 192.168.0.1 -m 255.255.255.0 -g 0.0.0.0 -s 0.0.0.0 -o 0.0.0.0 -t 8 -e 30 -r 15 -a 0 -d 1 -b 0 -v 4.10 -f default.mpf -c dhclient\n"
-		"注意：使用时请确保是以root权限运行！\n\n");
+		"例如:\t%s -uusername -ppassword -neth0 -i192.168.0.1 -m255.255.255.0 -g0.0.0.0 -s0.0.0.0 -o0.0.0.0 -t8 -e30 -r15 -a0 -d1 -b0 -v4.10 -fdefault.mpf -cdhclient\n"
+		"注意：使用时请确保是以root权限运行！\n\n";
 	printf(helpString, fileName, fileName);
-	//cancel the registered funciton:atexit(exit_handle)
 	exit(EXIT_SUCCESS);
 }
 
@@ -676,7 +398,7 @@ static int getAdapter()
 	char errbuf[PCAP_ERRBUF_SIZE];
 	if (pcap_findalldevs(&alldevs, errbuf)==-1 || alldevs==NULL)
 	{
-		printf(_("!! 查找网卡失败: %s\n"), errbuf);
+		printf("!! 查找网卡失败: %s\n", errbuf);
 		return -1;
 	}
 	for (d=alldevs; d!=NULL; d=d->next)
@@ -684,7 +406,7 @@ static int getAdapter()
 		num++;
 		if (!(d->flags & PCAP_IF_LOOPBACK) && strcmp(d->name, "any")!=0)
 		{
-			printf(_("** 网卡[%d]:\t%s\n"), num, d->name);
+			printf("** 网卡[%d]:\t%s\n", num, d->name);
 			avail++;
 			i = num;
 		}
@@ -692,19 +414,19 @@ static int getAdapter()
 	if (avail == 0)
 	{
 		pcap_freealldevs(alldevs);
-		printf(_("!! 找不到网卡！\n"));
+		printf("!! 找不到网卡！\n");
 		return -1;
 	}
 	if (avail > 1)
 	{
-		printf(_("?? 请选择网卡[1-%d]: "), num);
+		printf("?? 请选择网卡[1-%d]: ", num);
 		scanf("%d", &i);
 		if (i < 1)
 			i = 1;
 		else if (i > num)
 			i = num;
 	}
-	printf(_("** 您选择了第[%d]块网卡。\n"), i);
+	printf("** 您选择了第[%d]块网卡。\n", i);
 	for (d=alldevs; i>1; d=d->next, i--);
 	strncpy(nic, d->name, sizeof(nic)-1);
 	pcap_freealldevs(alldevs);
@@ -713,45 +435,40 @@ static int getAdapter()
 
 static void printConfig()
 {
-	char *addr[] = {_("标准"), _("锐捷"), _("赛尔")};
-	char *dhcp[] = {_("不使用"), _("二次认证"), _("认证后"), _("认证前")};
-	printf(_("** 用户名:\t%s\n"), userName);
+	char *addr[] = {"标准", "锐捷", "赛尔"};
+	char *dhcp[] = {"不使用", "二次认证", "认证后", "认证前"};
+	printf("** 用户名:\t%s\n", userName);
 	/* printf("** 密码:\t%s\n", password); */
-	printf(_("** 网卡: \t%s\n"), nic);
-	printf(_("** 服务名:\t%s\n"), serviceName);
+	printf("** 网卡: \t%s\n", nic);
 	if (gateway)
-		printf(_("** 网关地址:\t%s\n"), formatIP(gateway));
+		printf("** 网关地址:\t%s\n", formatIP(gateway));
 	if (dns)
-		printf(_("** DNS地址:\t%s\n"), formatIP(dns));
+		printf("** DNS地址:\t%s\n", formatIP(dns));
 	if (pingHost)
-		printf(_("** 智能重连:\t%s\n"), formatIP(pingHost));
-	printf(_("** 认证超时:\t%u秒\n"), timeout);
-	printf(_("** 心跳间隔:\t%u秒\n"), echoInterval);
-	printf(_("** 失败等待:\t%u秒\n"), restartWait);
-	if (maxFail)
-		printf(_("** 允许失败:\t%u次\n"), maxFail);
-	printf(_("** 组播地址:\t%s\n"), addr[startMode]);
-	printf(_("** DHCP方式:\t%s\n"), dhcp[dhcpMode]);
+		printf("** 智能重连:\t%s\n", formatIP(pingHost));
+	printf("** 认证超时:\t%u秒\n", timeout);
+	printf("** 响应间隔:\t%u秒\n", echoInterval);
+	printf("** 失败等待:\t%u秒\n", restartWait);
+	printf("** 允许失败:\t%u次\n", maxFail);
+	printf("** 组播地址:\t%s\n", addr[startMode]);
+	printf("** DHCP方式:\t%s\n", dhcp[dhcpMode]);
 #ifndef NO_NOTIFY
 	if (showNotify)
-		printf(_("** 通知超时:\t%d秒\n"), showNotify);
+		printf("** 通知超时:\t%d秒\n", showNotify);
 #endif
 	if (bufType >= 2)
-		printf(_("** 数据文件:\t%s\n"), dataFile);
+		printf("** 数据文件:\t%s\n", dataFile);
 	if (dhcpMode != 0)
-    {
-		printf(_("** DHCP脚本:\t"));
-        printf("%s/n", dhcpScript);
-    }
+		printf("** DHCP脚本:\t%s\n", dhcpScript);
 }
 
 static int openPcap()
 {
 	char buf[PCAP_ERRBUF_SIZE], *fmt;
 	struct bpf_program fcode;
-	if ((hPcap = pcap_open_live(nic, 2048, startMode >= 3  , 1000, buf)) == NULL)
+	if ((hPcap = pcap_open_live(nic, 2048, 1, 1000, buf)) == NULL)
 	{
-		printf(_("!! 打开网卡%s失败: %s\n"), nic, buf);
+		printf("!! 打开网卡%s失败: %s\n", nic, buf);
 		return -1;
 	}
 	fmt = formatHex(localMAC, 6);
@@ -765,7 +482,7 @@ static int openPcap()
 	if (pcap_compile(hPcap, &fcode, buf, 0, 0xffffffff) == -1
 			|| pcap_setfilter(hPcap, &fcode) == -1)
 	{
-		printf(_("!! 设置pcap过滤器失败: %s\n"), pcap_geterr(hPcap));
+		printf("!! 设置pcap过滤器失败: %s\n", pcap_geterr(hPcap));
 		return -1;
 	}
 	pcap_freecode(&fcode);
@@ -774,8 +491,8 @@ static int openPcap()
 
 static void saveConfig(int daemonMode)
 {
-	char *buf;
-	if (loadFile(&buf, CFG_FILE) < 0) {
+	char *buf = loadFile(CFG_FILE);
+	if (buf == NULL) {
 		buf = (char *)malloc(1);
 		buf[0] = '\0';
 	}
@@ -806,17 +523,15 @@ static void saveConfig(int daemonMode)
 #ifdef NO_ENCODE_PASS
 	setString(&buf, "MentoHUST", "Password", password);
 #else
-	char pass[ACCOUNT_SIZE*4/3+1];
-	encodePass(pass+1, password);
-	pass[0] = ' ';
-	setString(&buf, "MentoHUST", "Password", pass);
+	char pass[ACCOUNT_SIZE*4/3];
+	encodePass(pass, password);
+	setString(&buf, "MentoHUST", "EncodePass", pass);
 #endif
 	setString(&buf, "MentoHUST", "Username", userName);
-	setString(&buf, "MentoHUST", "ServiceName", serviceName);
 	if (saveFile(buf, CFG_FILE) != 0)
-		printf(_("!! 保存认证参数到%s失败！\n"), CFG_FILE);
+		printf("!! 保存认证参数到%s失败！\n", CFG_FILE);
 	else
-		printf(_("** 认证参数已成功保存到%s.\n"), CFG_FILE);
+		printf("** 认证参数已成功保存到%s.\n", CFG_FILE);
 	free(buf);
 }
 
@@ -825,7 +540,7 @@ static void checkRunning(int exitFlag, int daemonMode)
 	struct flock fl;
 	lockfd = open (LOCK_FILE, O_RDWR|O_CREAT, LOCKMODE);
 	if (lockfd < 0) {
-		perror(_("!! 打开锁文件失败"));
+		perror("!! 打开锁文件失败");	/* perror真的很好啊，以前没用它真是太亏了 */
 		goto error_exit;
 	}
 	fl.l_start = 0;
@@ -833,47 +548,45 @@ static void checkRunning(int exitFlag, int daemonMode)
 	fl.l_len = 0;
 	fl.l_type = F_WRLCK;
 	if (fcntl(lockfd, F_GETLK, &fl) < 0) {
-		perror(_("!! 获取文件锁失败"));
+		perror("!! 获取文件锁失败");
 		goto error_exit;
 	}
 	if (exitFlag) {
 		if (fl.l_type != F_UNLCK) {
-			printf(_(">> 已发送退出信号给MentoHUST进程(PID=%d).\n"), fl.l_pid);
+			printf(">> 已发送退出信号给MentoHUST进程(PID=%d).\n", fl.l_pid);
 			if (kill(fl.l_pid, SIGINT) == -1)
-				perror(_("!! 结束进程失败"));
+				perror("!! 结束进程失败");
 		}
 		else
-			printf(_("!! 没有MentoHUST正在运行！\n"));
+			printf("!! 没有MentoHUST正在运行！\n");
 		if (exitFlag == 1)
 			exit(EXIT_SUCCESS);
 	}
 	else if (fl.l_type != F_UNLCK) {
-		printf(_("!! MentoHUST已经运行(PID=%d)!\n"), fl.l_pid);
+		printf("!! MentoHUST已经运行(PID=%d)!\n", fl.l_pid);
 		exit(EXIT_FAILURE);
 	}
 	if (daemonMode) {	/* 貌似我过早进入后台模式了，就给个选项保留输出或者输出到文件吧 */
-		printf(_(">> 进入后台运行模式，使用参数-k可退出认证。\n"));
+		printf(">> 进入后台运行模式，使用参数-k可退出认证。\n");
 		if (daemon(0, (daemonMode+1)%2))
-			perror(_("!! 后台运行失败"));
+			perror("!! 后台运行失败");
 		else if (daemonMode == 3) {
 			freopen(LOG_FILE, "w", stdout);
-			setvbuf(stdout, (char *)NULL, _IOLBF, BUFSIZ);
 			freopen(LOG_FILE, "a", stderr);
 		}
 	}
 	fl.l_type = F_WRLCK;
 	fl.l_pid = getpid();
 	if (fcntl(lockfd, F_SETLKW, &fl) < 0) {
-		perror(_("!! 加锁失败"));
+		perror("!! 加锁失败");
 		goto error_exit;
 	}
 	return;
 
 error_exit:
 #ifndef NO_NOTIFY
-	if (showNotify && show_notify(_("MentoHUST - 错误提示"),
-		_("操作锁文件失败，请检查是否为root权限！"), 1000*showNotify) < 0)
-		showNotify = 0;
+	if (showNotify)
+		show_notify("MentoHUST - 错误提示", "操作锁文件失败，请检查是否为root权限！");
 #endif
 	exit(EXIT_FAILURE);
 }
