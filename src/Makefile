@@ -3,7 +3,7 @@ INC_DIR= $(STAGING_DIR)/usr/include
 LINK_DIR= $(STAGING_DIR)/usr/lib
 LIBS= -lpcap
 
-OBJ  =dlfunc.o md5.o mentohust.o mycheck.o myconfig.o myfunc.o myini.o mystate.o strnormalize.o
+OBJ  =dlfunc.o md5.o mentohust.o mycheck.o myconfig.o myfunc.o myini.o mystate.o
 .PHONY: all
 
 all: mentohust
@@ -33,9 +33,6 @@ myini.o : myini.c
 	$(CC) $(CFLAGS) -c $< -I$(INC_DIR)	
 
 mystate.o : mystate.c
-	$(CC) $(CFLAGS) -c $< -I$(INC_DIR)
-
-strnormalize.o: strnormalize.c
 	$(CC) $(CFLAGS) -c $< -I$(INC_DIR)
 
 clean :
