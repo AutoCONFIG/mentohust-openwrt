@@ -38,8 +38,6 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/mentohust $(1)/usr/sbin/
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/mentohust.init $(1)/etc/init.d/mentohust
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
