@@ -49,7 +49,7 @@ static const char *PACKAGE_BUGREPORT = "http://code.google.com/p/mentohust/issue
 #ifdef MAC_OS
 static const char *D_DHCPSCRIPT = "dhcping -v -t 15";	/* 默认DHCP脚本 */
 #else
-static const char *D_DHCPSCRIPT = "dhclient";	/* 默认DHCP脚本 */
+static const char *D_DHCPSCRIPT = "udhcpc -qi";	/* 默认DHCP脚本 */
 #endif
 static const char *CFG_FILE = "/etc/mentohust.conf";	/* 配置文件 */
 static const char *LOG_FILE = "/tmp/mentohust.log";	/* 日志文件 */
@@ -653,7 +653,7 @@ static void showHelp(const char *fileName)
 #ifndef NO_GETOPT_LONG
         "\t--dhcp-script"
 #endif
-		"\t-c DHCP脚本[默认dhclient]\n"
+		"\t-c DHCP脚本[默认udhcpc -qi]\n"
 #ifndef NO_GETOPT_LONG
         "\t--decode-config"
 #endif
@@ -662,7 +662,7 @@ static void showHelp(const char *fileName)
 		/* 从这里开始就是必须使用长选项的参数了 */
 		"\t--service 要登陆到的服务名 [默认internet]\n"
 #endif
-		"例如:\t%s -u username -p password -n eth0 -i 192.168.0.1 -m 255.255.255.0 -g 0.0.0.0 -s 0.0.0.0 -o 0.0.0.0 -t 8 -e 30 -r 15 -a 0 -d 1 -b 0 -v 4.10 -f default.mpf -c dhclient\n"
+		"例如:\t%s -u username -p password -n eth0 -i 192.168.0.1 -m 255.255.255.0 -g 0.0.0.0 -s 0.0.0.0 -o 0.0.0.0 -t 8 -e 30 -r 15 -a 0 -d 1 -b 0 -v 4.10 -f default.mpf -c udhcpc -qi\n"
 		"注意：使用时请确保是以root权限运行！\n\n");
 	printf(helpString, fileName, fileName);
 	//cancel the registered funciton:atexit(exit_handle)

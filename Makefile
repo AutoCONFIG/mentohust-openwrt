@@ -24,7 +24,6 @@ endef
 
 define Build/Prepare
 	$(CP) ./src/* $(PKG_BUILD_DIR)/
-	$(SED) 's/dhclient/udhcpc -i/g' $(PKG_BUILD_DIR)/myconfig.c
 endef
 
 define Build/Compile
