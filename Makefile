@@ -11,8 +11,6 @@ PKG_VERSION:=0.3.1
 PKG_RELEASE:=1
 PKG_LICENSE:=GPLv3
 
-MAKE_PATH:=src
-
 include $(INCLUDE_DIR)/package.mk
 
 define Package/$(PKG_NAME)
@@ -30,7 +28,7 @@ endif
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/mentohust $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/mentohust $(1)/usr/sbin/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
