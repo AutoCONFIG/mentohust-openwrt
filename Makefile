@@ -6,7 +6,7 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=mentohust-HustLion
+PKG_NAME:=mentohust
 PKG_VERSION:=0.3.1
 PKG_RELEASE:=1
 PKG_LICENSE:=GPLv3
